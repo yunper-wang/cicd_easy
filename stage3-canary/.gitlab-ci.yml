@@ -1,0 +1,47 @@
+# Stage 3: Canary 金丝雀发布
+# 流程: build → deploy-canary → Argo Rollouts 渐进式发布
+# 核心变化: 用 Argo Rollouts 替代 Deployment，支持 Canary 渐进流量切换
+
+stages:
+  - build
+  - deploy
+
+variables:
+  IMAGE_NAME: "${CI_REGISTRY}/root/cicd-demo/stage3"
+  IMAGE_TAG: "${CI_COMMIT_SHORT_SHA}"
+
+# ── 构建镜像 ──────────────────────────────────────────
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:latest
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+        --dockerfile="${CI_PROJECT_DIR}/stage3-canary/Dockerfile"
+        --context="${CI_PROJECT_DIR}/stage3-canary"
+        --destination="${IMAGE_NAME}:${IMAGE_TAG}"
+        --destination="${IMAGE_NAME}:latest"
+        --cache=true
+        --cache-repo="${CI_REGISTRY}/root/cicd-demo/cache"
+  only:
+    changes:
+      - stage3-canary/**/*
+
+# ── 更新 Rollout Manifest ────────────────────────────
+deploy:
+  stage: deploy
+  image: alpine:latest
+  script:
+    # 更新 rollout.yaml 中的镜像 tag
+    - sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g"
+        stage3-canary/k8s/rollout.yaml
+    - cd "${CI_PROJECT_DIR}"
+    - git config user.name "GitLab CI"
+    - git config user.email "ci@gitlab.local"
+    - git add stage3-canary/k8s/rollout.yaml
+    - git commit -m "chore: update stage3 canary image to ${IMAGE_TAG}"
+    - git push "https://root:${CI_JOB_TOKEN}@gitlab.local/${CI_PROJECT_PATH}.git" HEAD:main
+  only:
+    changes:
+      - stage3-canary/**/*

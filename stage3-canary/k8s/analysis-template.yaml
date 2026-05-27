@@ -1,0 +1,57 @@
+# AnalysisTemplate —— Canary 健康分析模板
+# 在每个 Canary 步骤之间执行，检测失败自动回滚
+# 指标来源: Prometheus（需要集群中已部署 Prometheus）
+# 如果没有 Prometheus，可以移除 analysis 步骤或使用 Web 分析
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+spec:
+  metrics:
+    # 指标 1: HTTP 成功率（5xx 比例）
+    - name: success-rate
+      interval: 10s
+      count: 6
+      successCondition: result[0] >= 0.95
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: http://prometheus-server.monitoring:9090
+          query: |
+            sum(rate(http_requests_total{app="stage3-app",status!~"5.."}[1m]))
+            /
+            sum(rate(http_requests_total{app="stage3-app"}[1m]))
+
+    # 指标 2: P99 延迟（替代方案：使用 Web 测试）
+    # 如果没有 Prometheus，可使用以下 Web 分析替代
+    - name: web-health
+      interval: 10s
+      count: 3
+      successCondition: result == "healthy"
+      failureLimit: 2
+      provider:
+        web:
+          url: http://stage3-canary:80/
+          timeoutSeconds: 5
+          # 简单的健康检查：HTTP 200 即为健康
+          jsonPath: "{$.status}"
+---
+# 备用方案: 不依赖 Prometheus 的轻量级分析
+# 使用 HTTP 请求成功率作为健康指标
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: web-check
+spec:
+  metrics:
+    - name: http-status
+      count: 5
+      interval: 5s
+      successCondition: "result[0] == 200"
+      failureLimit: 2
+      provider:
+        web:
+          url: http://stage3-canary:80/
+          timeoutSeconds: 3
+          method: GET
+          jsonPath: "{$.statusCode}"

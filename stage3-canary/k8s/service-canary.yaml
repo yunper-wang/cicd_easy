@@ -1,0 +1,17 @@
+# Stage 3 Canary Service —— 金丝雀版本流量入口
+# Argo Rollouts 自动管理此 Service 的 selector 指向 Canary ReplicaSet
+# 流量比例由 Rollout CRD 的 setWeight 步骤控制
+apiVersion: v1
+kind: Service
+metadata:
+  name: stage3-canary
+  labels:
+    app: stage3-app
+spec:
+  type: ClusterIP
+  selector:
+    app: stage3-app
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

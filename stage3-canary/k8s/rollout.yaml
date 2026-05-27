@@ -1,0 +1,77 @@
+# Stage 3 Rollout —— Argo Rollouts Canary 策略
+# 替代标准 Deployment，支持渐进式流量切换 + 自动回滚
+# 流量切换步骤: 20% → 40% → 60% → 100%（每个步骤间隔 30 秒分析）
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: stage3-app
+  labels:
+    app: stage3-app
+spec:
+  replicas: 4
+  strategy:
+    canary:
+      # Canary 步骤定义
+      steps:
+        # 步骤 1: 切换 20% 流量到 Canary
+        - setWeight: 20
+        # 步骤 2: 分析 Canary 健康指标（持续 60 秒）
+        - analysis:
+            templates:
+              - templateName: success-rate
+        # 步骤 3: 暂停 30 秒，观察监控
+        - pause:
+            duration: 30s
+        # 步骤 4: 切换到 40%
+        - setWeight: 40
+        - analysis:
+            templates:
+              - templateName: success-rate
+        - pause:
+            duration: 30s
+        # 步骤 5: 切换到 60%
+        - setWeight: 60
+        - analysis:
+            templates:
+              - templateName: success-rate
+        - pause:
+            duration: 30s
+        # 步骤 6: 全量发布
+        - setWeight: 100
+      # Canary 流量通过 Service 路由
+      canaryService: stage3-canary
+      stableService: stage3-stable
+      # 回滚条件：分析失败自动回滚
+      abortScaleDownDelaySeconds: 30
+  selector:
+    matchLabels:
+      app: stage3-app
+  template:
+    metadata:
+      labels:
+        app: stage3-app
+    spec:
+      containers:
+        - name: web
+          image: gitlab.local:5050/root/cicd-demo/stage3:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5

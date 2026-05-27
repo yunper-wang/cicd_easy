@@ -1,0 +1,25 @@
+# Stage 1 Argo CD Application —— 自动同步模式
+# 策略: Auto Sync + Self Heal
+# 说明: Git push 后 Argo CD 自动检测并同步，无需手动操作
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage1-app
+  namespace: argocd
+  labels:
+    stage: stage1
+spec:
+  project: default
+  source:
+    repoURL: 'http://gitlab.local:8929/root/cicd-demo.git'
+    targetRevision: main
+    path: stage1-static-deploy/k8s
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true       # 自动删除 Git 中已移除的资源
+      selfHeal: true    # 自动修复手动变更（如 kubectl edit）
+    syncOptions:
+      - CreateNamespace=true

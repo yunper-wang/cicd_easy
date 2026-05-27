@@ -1,0 +1,25 @@
+# Stage 2 Staging Application —— 自动同步
+# staging 环境: Auto Sync，验证通过后自动部署
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage2-staging
+  namespace: argocd
+  labels:
+    stage: stage2
+    env: staging
+spec:
+  project: default
+  source:
+    repoURL: 'http://gitlab.local:8929/root/cicd-demo.git'
+    targetRevision: main
+    path: stage2-multi-env/k8s/overlays/staging
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

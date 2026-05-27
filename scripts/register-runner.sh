@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# register-runner.sh — 注册 GitLab Runner 到 GitLab CE
+# 前置: GitLab CE 已启动，已获取 registration token
+
+set -euo pipefail
+
+GITLAB_URL="${GITLAB_URL:-http://gitlab.local:8929}"
+RUNNER_NAME="${RUNNER_NAME:-cicd-easy-runner}"
+RUNNER_TAG="${RUNNER_TAG:-docker}"
+
+echo "[register-runner] === GitLab Runner 注册指南 ==="
+echo ""
+echo "步骤 1: 获取 Registration Token"
+echo "  1. 打开 GitLab: http://localhost:8929"
+echo "  2. 以 root 登录"
+echo "  3. 进入 Admin Area → CI/CD → Runners"
+echo "  4. 复制 Registration token"
+echo ""
+echo "步骤 2: 运行注册（复制以下命令并填入 token）"
+echo ""
+echo "  docker run --rm -v gitlab-runner-config:/etc/gitlab-runner gitlab/gitlab-runner:latest register \\"
+echo "    --non-interactive \\"
+echo "    --url '${GITLAB_URL}' \\"
+echo "    --registration-token '<YOUR_TOKEN>' \\"
+echo "    --executor 'docker' \\"
+echo "    --docker-image 'alpine:latest' \\"
+echo "    --description '${RUNNER_NAME}' \\"
+echo "    --tag-list '${RUNNER_TAG}' \\"
+echo "    --run-untagged=true"
+echo ""
+echo "步骤 3: 验证"
+echo "  GitLab UI → Admin Area → CI/CD → Runners 应显示绿色 runner"
+echo ""
+echo "=== 或者使用 Kubernetes Runner（推荐） ==="
+echo ""
+echo "  helm repo add gitlab-runner https://charts.gitlab.io"
+echo "  helm install gitlab-runner gitlab-runner/gitlab-runner \\"
+echo "    --set gitlabUrl=${GITLAB_URL} \\"
+echo "    --set runnerRegistrationToken='<YOUR_TOKEN>' \\"
+echo "    --set rbac.create=true"
+echo ""
+echo "[register-runner] 注意: 将 '<YOUR_TOKEN>' 替换为实际的 registration token"

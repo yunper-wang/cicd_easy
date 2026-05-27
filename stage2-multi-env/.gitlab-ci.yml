@@ -1,0 +1,93 @@
+# Stage 2: 多环境发布（dev / staging / prod）
+# 流程: build → deploy:dev → deploy:staging → deploy:prod（手动门控）
+# 核心变化: Kustomize 管理 3 套环境配置 + prod 环境需手动触发
+
+stages:
+  - build
+  - deploy:dev
+  - deploy:staging
+  - deploy:prod
+
+variables:
+  IMAGE_NAME: "${CI_REGISTRY}/root/cicd-demo/stage2"
+  IMAGE_TAG: "${CI_COMMIT_SHORT_SHA}"
+
+# ── 构建镜像 ──────────────────────────────────────────
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:latest
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+        --dockerfile="${CI_PROJECT_DIR}/stage2-multi-env/Dockerfile"
+        --context="${CI_PROJECT_DIR}/stage2-multi-env"
+        --destination="${IMAGE_NAME}:${IMAGE_TAG}"
+        --destination="${IMAGE_NAME}:latest"
+        --cache=true
+        --cache-repo="${CI_REGISTRY}/root/cicd-demo/cache"
+  only:
+    changes:
+      - stage2-multi-env/**/*
+
+# ── 部署到 dev 环境（自动） ──────────────────────────
+deploy:dev:
+  stage: deploy:dev
+  image: alpine:latest
+  script:
+    - sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g"
+        stage2-multi-env/k8s/overlays/dev/kustomization.yaml
+    - cd "${CI_PROJECT_DIR}"
+    - git config user.name "GitLab CI"
+    - git config user.email "ci@gitlab.local"
+    - git add stage2-multi-env/k8s/overlays/dev/kustomization.yaml
+    - git commit -m "chore(dev): update stage2 image to ${IMAGE_TAG}"
+    - git push "https://root:${CI_JOB_TOKEN}@gitlab.local/${CI_PROJECT_PATH}.git" HEAD:main
+  only:
+    changes:
+      - stage2-multi-env/**/*
+    refs:
+      - main
+      - develop
+
+# ── 部署到 staging 环境（自动） ───────────────────────
+deploy:staging:
+  stage: deploy:staging
+  image: alpine:latest
+  script:
+    - sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g"
+        stage2-multi-env/k8s/overlays/staging/kustomization.yaml
+    - cd "${CI_PROJECT_DIR}"
+    - git config user.name "GitLab CI"
+    - git config user.email "ci@gitlab.local"
+    - git add stage2-multi-env/k8s/overlays/staging/kustomization.yaml
+    - git commit -m "chore(staging): update stage2 image to ${IMAGE_TAG}"
+    - git push "https://root:${CI_JOB_TOKEN}@gitlab.local/${CI_PROJECT_PATH}.git" HEAD:main
+  only:
+    changes:
+      - stage2-multi-env/**/*
+    refs:
+      - main
+
+# ── 部署到 prod 环境（手动门控） ──────────────────────
+# 关键: when: manual —— 需要在 GitLab UI 手动点击才会执行
+deploy:prod:
+  stage: deploy:prod
+  image: alpine:latest
+  script:
+    - sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g"
+        stage2-multi-env/k8s/overlays/prod/kustomization.yaml
+    - cd "${CI_PROJECT_DIR}"
+    - git config user.name "GitLab CI"
+    - git config user.email "ci@gitlab.local"
+    - git add stage2-multi-env/k8s/overlays/prod/kustomization.yaml
+    - git commit -m "chore(prod): update stage2 image to ${IMAGE_TAG}"
+    - git push "https://root:${CI_JOB_TOKEN}@gitlab.local/${CI_PROJECT_PATH}.git" HEAD:main
+  when: manual       # ← 手动触发门控
+  only:
+    changes:
+      - stage2-multi-env/**/*
+    refs:
+      - main
+  environment:
+    name: production

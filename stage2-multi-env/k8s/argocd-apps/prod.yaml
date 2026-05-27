@@ -1,0 +1,23 @@
+# Stage 2 Prod Application —— 手动同步
+# prod 环境: Manual Sync，需人工确认后部署
+# 这是 Stage 2 的核心变化：通过手动门控保护生产环境
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage2-prod
+  namespace: argocd
+  labels:
+    stage: stage2
+    env: prod
+spec:
+  project: default
+  source:
+    repoURL: 'http://gitlab.local:8929/root/cicd-demo.git'
+    targetRevision: main
+    path: stage2-multi-env/k8s/overlays/prod
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: prod
+  syncPolicy: {}  # 空 = Manual Sync，需人工在 Dashboard 点击 Sync
+  # 不设置 automated，Git 变更后 Argo CD 仅显示 Out of Sync
+  # 运维人员确认后在 Dashboard 手动点击 Sync 完成部署

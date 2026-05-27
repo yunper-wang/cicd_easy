@@ -1,0 +1,44 @@
+# Stage 1 Deployment —— 静态页面部署
+# 副本数: 2（高可用）
+# 镜像: 由 CI pipeline 自动更新 tag
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage1-app
+  labels:
+    app: stage1-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: stage1-app
+  template:
+    metadata:
+      labels:
+        app: stage1-app
+    spec:
+      containers:
+        - name: web
+          image: gitlab.local:5050/root/cicd-demo/stage1:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          # 健康检查 —— 确保容器正常运行
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5

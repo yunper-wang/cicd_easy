@@ -1,0 +1,25 @@
+# Stage 3 Argo CD Application —— Canary 模式
+# 使用 Auto Sync 配合 Argo Rollouts
+# Argo CD 检测到 Git 变更后触发 Rollout 更新
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage3-canary
+  namespace: argocd
+  labels:
+    stage: stage3
+spec:
+  project: default
+  source:
+    repoURL: 'http://gitlab.local:8929/root/cicd-demo.git'
+    targetRevision: main
+    path: stage3-canary/k8s
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

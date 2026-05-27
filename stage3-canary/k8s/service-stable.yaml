@@ -1,0 +1,16 @@
+# Stage 3 Stable Service —— 稳定版本流量入口
+# Argo Rollouts 自动管理此 Service 的 selector 指向稳定 ReplicaSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: stage3-stable
+  labels:
+    app: stage3-app
+spec:
+  type: ClusterIP
+  selector:
+    app: stage3-app
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

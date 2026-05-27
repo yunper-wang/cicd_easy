@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CI/CD GitOps Demo - Stage 2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .container { text-align: center; padding: 2rem; }
+        h1 { font-size: 2.5rem; margin-bottom: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .stage-badge {
+            display: inline-block; background: rgba(255,255,255,0.2);
+            padding: 0.5rem 1.5rem; border-radius: 2rem; font-size: 1rem;
+            margin-bottom: 1.5rem; backdrop-filter: blur(10px);
+        }
+        .env-selector { display: flex; gap: 1rem; justify-content: center; margin-bottom: 1.5rem; }
+        .env-btn {
+            padding: 0.5rem 1.5rem; border-radius: 0.5rem; border: 2px solid rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        .env-btn:hover, .env-btn.active {
+            background: rgba(255,255,255,0.3); border-color: #fff;
+        }
+        .info {
+            background: rgba(255,255,255,0.1); border-radius: 1rem;
+            padding: 1.5rem 2rem; backdrop-filter: blur(10px);
+            font-size: 0.9rem; line-height: 1.8;
+        }
+        .version { margin-top: 1rem; font-size: 0.8rem; opacity: 0.7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CI/CD GitOps Demo</h1>
+        <div class="stage-badge">Stage 2 - Multi-Environment Deploy</div>
+        <div class="env-selector">
+            <button class="env-btn active" onclick="showEnv('dev')">DEV</button>
+            <button class="env-btn" onclick="showEnv('staging')">STAGING</button>
+            <button class="env-btn" onclick="showEnv('prod')">PROD</button>
+        </div>
+        <div class="info">
+            <p>Deployed via Kustomize overlays with environment-specific configs.</p>
+            <p>Flow: Git Push → CI Build → Dev (auto) → Staging (auto) → Prod (manual gate)</p>
+        </div>
+        <div class="version">Version: v1.0.0 | Environment: <span id="env-name">dev</span></div>
+    </div>
+    <script>
+        function showEnv(env) {
+            document.getElementById('env-name').textContent = env;
+            document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
