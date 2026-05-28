@@ -5,6 +5,8 @@ title: Kustomize 配置
 
 # Kustomize 配置详解
 
+import K8sManifestGenerator from '@site/src/components/K8sManifestGenerator';
+
 ## base/kustomization.yaml
 
 ```yaml
@@ -58,12 +60,10 @@ patches:
 namespace: stage2-prod
 ```
 
-## 配置交互
+## 交互式 K8s Manifest Generator
 
-使用 **K8s Manifest Generator** 练习多环境配置：
+使用下方的 **K8s Manifest Generator** 练习多环境配置。选择目标环境，调整参数，实时预览生成的配置：
 
-- 选择目标环境（dev / staging / prod）
-- 调整差异化参数（replicas、image、resources）
-- 实时预览生成的 kustomization.yaml
+<K8sManifestGenerator />
 
 下一步: [实操引导](./hands-on)
