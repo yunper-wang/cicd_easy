@@ -188,6 +188,41 @@ kubectl logs -n argocd -l app.kubernetes.io/name=argocd-repo-server --tail=20
 
 ---
 
+## 回滚策略
+
+### 方式 1：git revert（推荐）
+
+```bash
+# 回退到上一个版本
+git revert HEAD
+git push origin main
+# Argo CD 自动检测变更，同步回上一版本的镜像
+
+# 回退到指定版本
+git revert <commit-sha>
+git push origin main
+```
+
+**优势**：Git 历史完整，可审计，Argo CD 自动完成同步。
+
+### 方式 2：Argo CD 回滚
+
+```bash
+# 查看 deployment 历史
+argocd app history stage1-app
+
+# 回滚到指定版本
+argocd app rollback stage1-app <revision-id>
+```
+
+### 方式 3：CI rollback job（参考）
+
+在 `.gitlab-ci.yml` 中预留了注释形式的 rollback job，展示了传统 CI 回滚模式的工作方式。传统方案通过手动触发 CI job 将镜像 tag 改回上一版本，而 GitOps 方案通过 `git revert` 更简洁安全。
+
+> 详见 `docs/gitlab-ci-advanced.md` 了解传统与 GitOps 回滚的完整对比。
+
+---
+
 ## 常见问题排查
 
 | 问题 | 原因 | 解决方法 |

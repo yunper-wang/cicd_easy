@@ -203,6 +203,50 @@ kubectl get deployment -n prod stage2-app-prod -o jsonpath='{.metadata.labels}'
 
 ---
 
+## 环境变量管理
+
+### 配置 GitLab CI 文件类型变量
+
+Stage 2 的 CI Pipeline 包含 `prepare:env` 阶段，可以从 GitLab CI 文件类型变量自动生成环境配置文件：
+
+```bash
+# 1. 打开 GitLab → Settings → CI/CD → Variables
+
+# 2. 添加 dev 环境变量（File 类型）
+#    Key:   DEV_ENV_FILE
+#    Type:  File
+#    Value: （.env.dev 文件内容）
+#    示例：
+#      DB_HOST=localhost
+#      DB_PORT=5432
+#      API_URL=http://dev-api.example.com
+
+# 3. 添加 prod 环境变量（File 类型）
+#    Key:   PROD_ENV_FILE
+#    Type:  File
+#    Value: （.env.prod 文件内容）
+#    示例：
+#      DB_HOST=prod-db.example.com
+#      DB_PORT=5432
+#      API_URL=https://api.example.com
+
+# 4. CI Pipeline 运行时
+#    prepare:env job 会自动将这些变量转为 .env 文件
+#    后续 deploy job 可通过 artifacts 使用
+```
+
+### CI 变量 vs Kustomize ConfigMap
+
+| 方式 | 适用场景 | 本项目使用 |
+|------|---------|-----------|
+| CI 文件类型变量 | 部署时需要不同 .env 的传统 Docker 部署 | `prepare:env` 阶段 |
+| Kustomize ConfigMap | K8s 原生配置管理 | `overlays/*/kustomization.yaml` |
+| K8s Secret | 敏感信息（密码、密钥） | 可通过 secretGenerator 添加 |
+
+> 详见 `docs/gitlab-ci-advanced.md` 和 `docs/deploy-patterns-comparison.md` 了解传统与 GitOps 配置管理的完整对比。
+
+---
+
 ## 常见问题排查
 
 | 问题 | 原因 | 解决方法 |

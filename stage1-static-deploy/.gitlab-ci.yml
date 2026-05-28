@@ -68,3 +68,30 @@ deploy-info:
   only:
     changes:
       - stage1-static-deploy/**/*
+
+# ── Stage 1-4: 回滚（学习参考） ──────────────────────────
+# GitOps 回滚首选 git revert（回退 deployment.yaml 镜像 tag）
+# 以下 rollback job 作为传统 CI 回滚模式的参考
+# 实际使用中，Argo CD + git revert 更安全可靠
+#
+# rollback:
+#   stage: .post
+#   image: alpine:latest
+#   when: manual
+#   script:
+#     # 获取上一版本的镜像 tag（上一个 commit 的 deployment.yaml）
+#     - PREVIOUS_TAG=$(git show HEAD~1:stage1-static-deploy/k8s/deployment.yaml | grep 'image:' | awk '{print $2}' | cut -d: -f2)
+#     - echo "Rolling back to image tag: ${PREVIOUS_TAG}"
+#     - sed -i "s|image:.*|image: ${IMAGE_NAME}:${PREVIOUS_TAG}|g"
+#         stage1-static-deploy/k8s/deployment.yaml
+#     - cd "${CI_PROJECT_DIR}"
+#     - git config user.name "GitLab CI"
+#     - git config user.email "ci@gitlab.local"
+#     - git add stage1-static-deploy/k8s/deployment.yaml
+#     - git commit -m "rollback: stage1 to ${PREVIOUS_TAG}"
+#     - git push "https://root:${CI_JOB_TOKEN}@gitlab.local/${CI_PROJECT_PATH}.git" HEAD:main
+#   only:
+#     changes:
+#       - stage1-static-deploy/**/*
+#   dependencies:
+#     - deploy-info

@@ -53,6 +53,8 @@
 
 **建议硬件配置**: 4 CPU / 8GB RAM / 30GB 磁盘
 
+> **方案定位**：本项目采用 Kubernetes GitOps 方案（Argo CD + Argo Rollouts）。如果你对传统 Docker Compose + SSH 部署模式也感兴趣，可以参考 [TANGandXUE/cicd-setup](https://github.com/TANGandXUE/cicd-setup) 项目。详见 [部署模式对比文档](docs/deploy-patterns-comparison.md)。
+
 ### 一键搭建
 
 ```bash
@@ -205,6 +207,8 @@ cicd_easy/
 │   ├── guide-stage1.md            # Stage 1 操作指南 (Mermaid 流程图)
 │   ├── guide-stage2.md            # Stage 2 操作指南 (分支策略 + 门控)
 │   ├── guide-stage3.md            # Stage 3 操作指南 (Canary 序列图)
+│   ├── gitlab-ci-advanced.md      # GitLab CI 高级模式 (回滚/部署切换/独立构建)
+│   ├── deploy-patterns-comparison.md # 部署模式对比 (传统 Docker vs GitOps)
 │   └── learning-roadmap.md        # 学习路线图 (L1-L3, 7-10 天)
 └── README.md                       # 本文件
 ```
@@ -261,6 +265,7 @@ cicd_easy/
 - [Kustomize 文档](https://kustomize.io/)
 - [OpenGitOps 原则](https://opengitops.dev/)
 - [Kind 官方文档](https://kind.sigs.k8s.io/)
+- [传统 CI/CD 部署方案参考 (TANGandXUE/cicd-setup)](https://github.com/TANGandXUE/cicd-setup) — 传统 Docker Compose + SSH 部署模式的 CLI 脚手架工具，与本项目 GitOps 方案形成对比
 
 ## License
 
