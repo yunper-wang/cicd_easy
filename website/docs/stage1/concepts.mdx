@@ -1,0 +1,165 @@
+---
+sidebar_position: 1
+title: 核心概念
+---
+
+# Stage 1: GitOps 基本闭环
+
+import PipelineVisualizer from '@site/src/components/PipelineVisualizer';
+
+## 什么是 GitOps？
+
+GitOps 是一种现代化的持续交付方法，其核心思想是 **将 Git 作为基础设施和应用配置的唯一可信源**。它由 Weaveworks 在 2017 年提出，现已成为云原生领域的事实标准。
+
+### GitOps 四大原则
+
+#### 1. 声明式配置（Declarative Configuration）
+
+整个系统的期望状态（Desired State）用声明式语言描述，而非命令式脚本。在 Kubernetes 生态中，这意味着所有资源都用 YAML 清单定义：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    spec:
+      containers:
+      - name: app
+        image: registry.local/my-app:v1.0.0
+```
+
+声明式配置的好处：
+- **可审计** — 每次变更都有 Git commit 记录
+- **可回滚** — `git revert` 即可恢复到之前的版本
+- **可复制** — 同一份配置可以在多个环境中复用
+
+#### 2. Git 单一可信源（Single Source of Truth）
+
+系统的期望状态存储在 Git 仓库中，所有变更通过 Git 提交触发。这意味着：
+- 任何配置变更都必须经过 Git 流程（commit、review、merge）
+- Git 历史记录就是完整的变更审计日志
+- 分支保护策略可以强制实施审批流程
+
+#### 3. 自动同步（Automated Sync）
+
+控制器持续监控 Git 仓库，一旦检测到新的提交，自动将变更应用到集群。Argo CD 就是这样一个控制器，它的同步机制包括：
+- **周期性轮询** — 默认每 3 分钟检查一次 Git 仓库
+- **Webhook 触发** — Git 仓库推送事件可立即触发同步
+- **手动同步** — 在 Dashboard 或 CLI 手动触发
+
+#### 4. 持续协调（Continuous Reconciliation）
+
+控制器持续比对 Git 中的期望状态与集群的实际状态，任何偏差都会被自动修正：
+
+| 偏差类型 | 示例 | 协调行为 |
+|----------|------|----------|
+| 配置漂移 | 有人手动修改了副本数 | 自动恢复到 Git 定义的数量 |
+| 资源缺失 | Pod 被意外删除 | 自动重建缺失的资源 |
+| 版本不一致 | 镜像标签被手动更改 | 自动恢复到 Git 指定的版本 |
+
+## CI/CD Pipeline 基础
+
+CI/CD Pipeline 是实现 GitOps 的关键引擎。在 GitLab CI 中，Pipeline 由以下核心概念组成：
+
+### Stages（阶段）
+
+Stage 定义了 Pipeline 的执行顺序。同一 Stage 中的 Job 并行执行，不同 Stage 按顺序串行：
+
+```yaml
+stages:
+  - build    # 第一阶段：构建
+  - test     # 第二阶段：测试
+  - deploy   # 第三阶段：部署
+```
+
+### Jobs（任务）
+
+Job 是 Pipeline 的最小执行单元，每个 Job 必须归属于一个 Stage：
+
+```yaml
+build-image:
+  stage: build
+  script:
+    - echo "Building Docker image..."
+  only:
+    - main
+
+run-unit-tests:
+  stage: test
+  script:
+    - echo "Running tests..."
+  only:
+    - main
+```
+
+### Dependencies（依赖）
+
+通过 `needs` 关键字可以定义 Job 之间的显式依赖关系，创建 DAG（有向无环图）执行模式：
+
+```yaml
+build-image:
+  stage: build
+  script:
+    - /kaniko/executor --destination=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+run-unit-tests:
+  stage: test
+  needs: [build-image]
+  script:
+    - echo "Testing the built image..."
+
+deploy-to-dev:
+  stage: deploy
+  needs: [run-unit-tests]
+  script:
+    - echo "Deploying to dev environment..."
+```
+
+## Pipeline 流程可视化
+
+下面的交互式演示展示了一个典型的 GitOps CI/CD Pipeline 流程，从代码提交到应用部署的完整链路：
+
+<PipelineVisualizer autoRun={true} />
+
+## Stage 1 学习目标
+
+在本阶段，你将理解并实践：
+
+- Docker 镜像构建（Kaniko）
+- GitLab CI Pipeline 配置（`.gitlab-ci.yml`）
+- Argo CD Application 定义与同步
+- Git Push -> CI Build -> CD Sync 完整闭环
+
+## 知识检测
+
+<div className="quiz">
+  <h4>知识检测</h4>
+  <details>
+    <summary>问题: GitOps 的核心思想是什么？</summary>
+    <p><strong>答案</strong>: 将 Git 作为基础设施和应用配置的唯一可信源</p>
+    <p>GitOps 的核心是将 Git 仓库作为系统期望状态的单一可信源，所有变更通过 Git 提交触发，控制器自动将期望状态同步到集群。</p>
+  </details>
+  <details>
+    <summary>问题: GitLab CI 中 stages 和 jobs 的关系是什么？</summary>
+    <p><strong>答案</strong>: stages 定义执行阶段顺序，jobs 是归属于某个 stage 的具体任务</p>
+    <p>同一 stage 中的 jobs 并行执行，不同 stages 按定义顺序串行执行。每个 job 必须通过 <code>stage</code> 字段归属于一个阶段。</p>
+  </details>
+  <details>
+    <summary>问题: Argo CD 的持续协调机制如何工作？</summary>
+    <p><strong>答案</strong>: 控制器持续比对 Git 期望状态与集群实际状态，自动修正偏差</p>
+    <p>Argo CD 默认每 3 分钟检查一次 Git 仓库变更，同时支持 Webhook 即时触发。当检测到集群实际状态与 Git 期望状态不一致时，会自动执行同步操作。</p>
+  </details>
+  <details>
+    <summary>问题: 声明式配置相比命令式脚本有哪些优势？</summary>
+    <p><strong>答案</strong>: 可审计、可回滚、可复制</p>
+    <p>声明式配置描述"想要什么"而非"怎么做"，配合 Git 版本控制，每次变更都有完整记录，可以通过 <code>git revert</code> 轻松回滚，同一份配置可在多个环境中复用。</p>
+  </details>
+</div>
+
+下一步: [Pipeline 配置](./pipeline-config)

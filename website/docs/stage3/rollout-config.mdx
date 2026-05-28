@@ -1,0 +1,301 @@
+---
+sidebar_position: 2
+title: Rollout 配置
+---
+
+# Argo Rollouts 配置详解
+
+import RolloutConfigurator from '@site/src/components/RolloutConfigurator';
+
+## Argo Rollouts CRD 介绍
+
+Argo Rollouts 使用自定义资源定义（CRD）来扩展 Kubernetes 的部署能力。核心 CRD 是 `Rollout`，它替代了标准的 `Deployment` 资源。
+
+### Rollout CRD 基本结构
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: stage3-app
+  labels:
+    app: stage3-app
+spec:
+  replicas: 5
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: stage3-app
+  strategy:
+    canary: {}   # 或 blueGreen: {}
+  template:
+    spec:
+      containers:
+      - name: app
+        image: registry.local/stage3-app:v1.0.0
+        ports:
+        - containerPort: 80
+```
+
+关键字段说明：
+- `revisionHistoryLimit` — 保留的历史版本数，用于回滚
+- `strategy` — 发布策略，支持 `canary` 和 `blueGreen`
+- `template` — Pod 模板，与 Deployment 相同
+
+## Canary 发布配置
+
+### Canary Steps（步骤）
+
+Canary 发布通过 `steps` 定义流量切换的节奏：
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: stage3-app
+spec:
+  replicas: 5
+  strategy:
+    canary:
+      steps:
+      - setWeight: 20       # 切换 20% 流量到 canary
+      - pause: {duration: 30s}  # 暂停 30 秒观察
+      - setWeight: 40       # 切换 40% 流量
+      - pause: {duration: 30s}
+      - setWeight: 60       # 切换 60% 流量
+      - pause: {duration: 30s}
+      - setWeight: 80       # 切换 80% 流量
+      - pause: {duration: 30s}
+      # 最后自动推进到 100%
+```
+
+步骤类型说明：
+- `setWeight: N` — 将 N% 的流量切换到 canary 版本
+- `pause: {duration: 30s}` — 暂停指定时间后自动继续
+- `pause: {}` — 无限暂停，需要手动 promote
+
+### Analysis 分析
+
+在 Canary 步骤中嵌入 Analysis，自动判断是否继续：
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: stage3-app
+spec:
+  replicas: 5
+  strategy:
+    canary:
+      steps:
+      - setWeight: 20
+      - pause: {duration: 30s}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          args:
+          - name: service-name
+            value: stage3-app-canary
+      - setWeight: 40
+      - pause: {duration: 30s}
+      - analysis:
+          templates:
+          - templateName: success-rate
+      - setWeight: 60
+      - pause: {duration: 30s}
+```
+
+### AnalysisTemplate 配置
+
+AnalysisTemplate 定义了分析指标和判定条件：
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: success-rate
+    interval: 10s
+    count: 3
+    successCondition: result[0] >= 0.95
+    failureLimit: 1
+    provider:
+      prometheus:
+        query: |
+          sum(rate(http_requests_total{
+            service="{{args.service-name}}",
+            status!~"5.."
+          }[1m]))
+          /
+          sum(rate(http_requests_total{
+            service="{{args.service-name}}"
+          }[1m]))
+```
+
+字段说明：
+- `interval` — 每次查询的间隔时间
+- `count` — 总共查询次数
+- `successCondition` — 成功条件表达式
+- `failureLimit` — 允许失败的次数上限
+- `provider.prometheus.query` — Prometheus 查询语句
+
+## Blue-Green 发布配置
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: stage3-app
+spec:
+  replicas: 3
+  strategy:
+    blueGreen:
+      activeService: stage3-app-active
+      previewService: stage3-app-preview
+      autoPromotionEnabled: false
+      autoPromotionSeconds: 30
+      scaleDownDelaySeconds: 60
+      prePromotionAnalysis:
+        templates:
+        - templateName: pre-promotion-checks
+```
+
+字段说明：
+- `activeService` — 指向当前稳定版本的 Service
+- `previewService` — 指向新版本的 Service
+- `autoPromotionEnabled` — 是否自动切换（false = 手动）
+- `autoPromotionSeconds` — 自动切换前的等待时间
+- `scaleDownDelaySeconds` — 切换后缩容旧版本的延迟
+- `prePromotionAnalysis` — 切换前执行的分析
+
+## 交互式 Canary 配置器
+
+使用下方的 **Canary 配置器** 自定义金丝雀发布参数。调整副本数、流量权重、分析指标等参数，实时预览生成的 Rollout YAML：
+
+<RolloutConfigurator strategy="canary" />
+
+## 交互式 Blue-Green 配置器
+
+使用下方的 **Blue-Green 配置器** 自定义蓝绿发布参数。调整 Active/Preview 副本数、自动提升策略等：
+
+<RolloutConfigurator strategy="bluegreen" />
+
+## 完整 Rollout YAML 示例
+
+以下是一个生产级的 Canary Rollout 完整配置：
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: stage3-app
+  namespace: stage3
+spec:
+  replicas: 5
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: stage3-app
+  strategy:
+    canary:
+      canaryService: stage3-app-canary
+      stableService: stage3-app-stable
+      trafficRouting:
+        istio:
+          virtualServices:
+          - name: stage3-app-vsvc
+            routes:
+            - primary
+      steps:
+      - setWeight: 20
+      - pause: {duration: 30s}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          - templateName: latency-p99
+      - setWeight: 40
+      - pause: {duration: 30s}
+      - analysis:
+          templates:
+          - templateName: success-rate
+      - setWeight: 60
+      - pause: {duration: 30s}
+      - setWeight: 80
+      - pause: {duration: 30s}
+  template:
+    metadata:
+      labels:
+        app: stage3-app
+    spec:
+      containers:
+      - name: app
+        image: registry.local/stage3-app:v1.0.0
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+```
+
+## Prometheus 查询常用模式
+
+### 成功率分析
+
+```yaml
+metrics:
+- name: success-rate
+  successCondition: result[0] >= 0.95
+  provider:
+    prometheus:
+      query: |
+        sum(rate(http_requests_total{status!~"5.."}[1m]))
+        /
+        sum(rate(http_requests_total[1m]))
+```
+
+### 延迟分析
+
+```yaml
+metrics:
+- name: latency-p99
+  successCondition: result[0] <= 0.5
+  provider:
+    prometheus:
+      query: |
+        histogram_quantile(0.99,
+          sum(rate(http_request_duration_seconds_bucket[1m]))
+          by (le)
+        )
+```
+
+### 错误率分析
+
+```yaml
+metrics:
+- name: error-rate
+  successCondition: result[0] <= 0.01
+  provider:
+    prometheus:
+      query: |
+        sum(rate(http_requests_total{status=~"5.."}[1m]))
+        /
+        sum(rate(http_requests_total[1m]))
+```
+
+## 要点总结
+
+- Rollout CRD 是 Deployment 的增强替代，支持 Canary 和 Blue-Green 两种策略
+- Canary 通过 `steps` 精确控制流量切换节奏
+- AnalysisTemplate 定义自动化指标分析，异常时自动回滚
+- Blue-Green 通过双环境切换实现即时回滚
+- 支持多种 Prometheus 查询模式进行指标分析
+
+下一步: [实操引导](./hands-on)

@@ -1,0 +1,216 @@
+---
+sidebar_position: 1
+title: 核心概念
+---
+
+# Stage 2: 多环境管理
+
+## 为什么需要多环境？
+
+在真实的 CI/CD 流程中，应用需要部署到多个环境，每个环境有独立的用途和配置要求：
+
+| 环境 | 用途 | 特点 | Sync Policy |
+|------|------|------|-------------|
+| **dev** | 开发测试 | 快速迭代，资源少 | Auto Sync |
+| **staging** | 预发布验证 | 接近生产配置 | Auto Sync |
+| **prod** | 生产环境 | 高可用，严格变更控制 | Manual Sync |
+
+多环境管理的核心挑战是：如何在保持环境一致性的同时，灵活管理各环境的差异化配置。答案就是 **Kustomize**。
+
+## Kustomize base/overlay 模式
+
+Kustomize 是 Kubernetes 原生的配置管理工具，采用 **base + overlay** 模式管理多环境配置。
+
+### 核心思想
+
+- **base/** — 所有环境共享的基础配置（Deployment、Service 等）
+- **overlay/** — 每个环境的差异化配置，只写与 base 不同的部分
+
+这种模式遵循 DRY（Don't Repeat Yourself）原则：共享配置只维护一份，差异化部分按环境隔离。
+
+### 目录结构
+
+```
+k8s/
+  ├── base/
+  │   ├── deployment.yaml        # 共用的 Deployment 定义
+  │   ├── service.yaml           # 共用的 Service 定义
+  │   └── kustomization.yaml     # base 资源声明
+  └── overlays/
+      ├── dev/
+      │   └── kustomization.yaml # dev 差异化配置
+      ├── staging/
+      │   └── kustomization.yaml # staging 差异化配置
+      └── prod/
+          └── kustomization.yaml # prod 差异化配置
+```
+
+### 工作原理
+
+```
+base/ (共享配置)
+  ├── replicas: (未指定)
+  ├── image: my-app:latest
+  └── resources: (未指定)
+       │
+       ├── + dev overlay
+       │     ├── replicas: 1
+       │     ├── image: my-app:dev-latest
+       │     └── resources: {cpu: 50m, memory: 64Mi}
+       │
+       ├── + staging overlay
+       │     ├── replicas: 2
+       │     ├── image: my-app:staging-latest
+       │     └── resources: {cpu: 100m, memory: 128Mi}
+       │
+       └── + prod overlay
+             ├── replicas: 3
+             ├── image: my-app:v1.0.0
+             └── resources: {cpu: 200m, memory: 256Mi}
+```
+
+## 多环境隔离策略
+
+### Namespace 隔离
+
+每个环境使用独立的 Kubernetes Namespace，确保资源隔离：
+
+```yaml
+# overlay/dev/kustomization.yaml
+namespace: stage2-dev
+
+# overlay/staging/kustomization.yaml
+namespace: stage2-staging
+
+# overlay/prod/kustomization.yaml
+namespace: stage2-prod
+```
+
+### 资源配额
+
+通过 ResourceQuota 限制每个环境的资源使用：
+
+```yaml
+# overlay/dev/resource-quota.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 4Gi
+    pods: "10"
+```
+
+### NetworkPolicy 网络隔离
+
+限制环境间的网络访问：
+
+```yaml
+# overlay/prod/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prod-isolation
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            env: prod
+```
+
+## GitOps 部署工作流
+
+在 GitOps 模式下，多环境部署遵循以下工作流：
+
+### 1. 开发环境（自动化）
+
+```
+代码提交 -> CI Pipeline -> 构建镜像(dev-latest)
+  -> 更新 overlay/dev/kustomization.yaml -> Argo CD 自动同步 -> dev 集群
+```
+
+开发环境配置 Auto Sync，代码合并到 main 分支后自动部署。
+
+### 2. 预发布环境（自动化）
+
+```
+CI Pipeline 成功 -> 构建镜像(staging-latest)
+  -> 更新 overlay/staging/kustomization.yaml -> Argo CD 自动同步 -> staging 集群
+```
+
+staging 环境同样配置 Auto Sync，但只在 dev 验证通过后才部署。
+
+### 3. 生产环境（手动审批）
+
+```
+staging 验证通过 -> 人工审批
+  -> 更新 overlay/prod/kustomization.yaml -> Argo CD 等待手动同步 -> prod 集群
+```
+
+生产环境使用 Manual Sync，需要人工在 Argo CD Dashboard 点击"Sync"按钮确认。
+
+### Argo CD 多 Application 管理
+
+每个环境对应一个独立的 Argo CD Application：
+
+```bash
+# dev — 自动同步
+argocd app create stage2-dev \
+  --repo https://your-gitlab.local/cicd_easy.git \
+  --path labs/stage2-multi-env/overlay/dev \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace stage2-dev \
+  --sync-policy automated
+
+# prod — 手动同步
+argocd app create stage2-prod \
+  --repo https://your-gitlab.local/cicd_easy.git \
+  --path labs/stage2-multi-env/overlay/prod \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace stage2-prod
+  # 注意: 不设置 --sync-policy，默认手动同步
+```
+
+## Stage 2 学习目标
+
+- [ ] 理解 Kustomize base/overlay 架构
+- [ ] 掌握多环境差异化配置方法
+- [ ] 配置 Argo CD 多 Application 管理
+- [ ] 理解 Sync Policy 对不同环境的影响
+
+## 知识检测
+
+<div className="quiz">
+  <h4>知识检测</h4>
+  <details>
+    <summary>问题: Kustomize 中 base/ 和 overlay/ 的关系是什么？</summary>
+    <p><strong>答案</strong>: base 包含共享配置，overlay 只写与 base 不同的部分</p>
+    <p>Kustomize 的核心理念是 DRY。base/ 包含所有环境共享的基础配置，overlay/ 只定义与 base 不同的差异化部分。最终通过 <code>kustomize build</code> 合并生成完整的 K8s 清单。</p>
+  </details>
+  <details>
+    <summary>问题: 生产环境(prod)通常使用哪种 Sync Policy？</summary>
+    <p><strong>答案</strong>: Manual Sync — 需要人工审批后才同步</p>
+    <p>生产环境通常使用手动同步，确保每次变更都经过人工审核。开发环境则可以用自动同步来加快迭代速度。</p>
+  </details>
+  <details>
+    <summary>问题: 为什么需要多环境隔离？</summary>
+    <p><strong>答案</strong>: 防止开发/测试影响生产，确保环境独立性和安全性</p>
+    <p>通过 Namespace 隔离、ResourceQuota 资源限制、NetworkPolicy 网络隔离等手段，确保开发环境的操作不会影响生产环境的稳定性和安全性。</p>
+  </details>
+  <details>
+    <summary>问题: 在 Kustomize 中如何修改 base 中的镜像标签？</summary>
+    <p><strong>答案</strong>: 在 overlay 的 kustomization.yaml 中使用 patches 或 images 字段</p>
+    <p>Kustomize 支持多种方式修改 base 配置：strategic merge patches、JSON patches、images 字段等。overlay 只需要声明要修改的部分，其余配置自动从 base 继承。</p>
+  </details>
+</div>
+
+下一步: [Kustomize 配置](./kustomize-config)

@@ -267,3 +267,77 @@
   .k8s-generator__preview { border-left: none; border-top: 1px solid var(--ifm-color-emphasis-300); }
 }
 
+/* === Enterprise Components Global Styles === */
+
+/* Shared component panel utilities */
+.panel-container {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  margin: 1rem 0;
+  overflow: hidden;
+  background: var(--ifm-background-color);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.panel-header h4 { margin: 0; }
+
+.split-pane {
+  display: flex;
+}
+
+.split-pane--vertical {
+  flex-direction: column;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge--success { background: rgba(46, 160, 67, 0.15); color: #2ea043; }
+.status-badge--error { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+.status-badge--warning { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+.status-badge--info { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+/* Transition utilities */
+.fade-transition { transition: all 0.3s ease; }
+.slide-transition { transition: transform 0.3s ease, opacity 0.3s ease; }
+.width-transition { transition: width 0.5s ease; }
+
+/* Code block enhancement */
+.theme-code-block {
+  border-radius: 6px;
+}
+
+/* Syntax highlighting refinements for dark theme */
+[data-theme='dark'] .token.key { color: #e06c75; }
+[data-theme='dark'] .token.string { color: #98c379; }
+[data-theme='dark'] .token.comment { color: #5c6370; font-style: italic; }
+[data-theme='dark'] .token.boolean { color: #d19a66; }
+[data-theme='dark'] .token.number { color: #d19a66; }
+
+/* Responsive: 1280px desktop adjustments */
+@media screen and (max-width: 1280px) {
+  .split-pane { gap: 0.5rem; }
+}
+
+/* Responsive: 768px tablet/mobile */
+@media screen and (max-width: 768px) {
+  .split-pane {
+    flex-direction: column;
+  }
+}
+

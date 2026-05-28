@@ -1,0 +1,191 @@
+---
+sidebar_position: 1
+title: 核心概念
+---
+
+# Stage 3: 渐进式交付
+
+## 什么是渐进式交付？
+
+渐进式交付（Progressive Delivery）是 CI/CD 的进阶模式，它将部署过程分解为多个可控制的阶段，在每个阶段进行验证后才推进到下一阶段。相比传统的全量发布，渐进式交付大幅降低了发布风险。
+
+## Canary 金丝雀发布
+
+### 核心原理
+
+金丝雀发布是一种**渐进式交付**策略：先向一小部分用户暴露新版本，观察指标正常后逐步扩大流量范围。
+
+名称来源于煤矿工人将金丝雀带入矿井的做法 — 如果金丝雀出现问题，说明环境有危险，应立即撤离。在软件发布中，金丝雀就是那小部分接收新版本的用户流量。
+
+### 流量分配过程
+
+```
+Step 1:  100% stable ←──── 初始状态
+         0% canary
+
+Step 2:  80% stable ←──── 20% canary，开始分析
+         20% canary
+
+Step 3:  60% stable ←──── 40% canary，继续观察
+         40% canary
+
+Step 4:  100% canary ←─── 分析通过，全量切换
+         0% stable
+```
+
+### 分析与自动回滚
+
+Canary 发布的关键在于**自动化分析**（Analysis）。在每个流量切换步骤之间，Argo Rollouts 会执行 AnalysisRun，查询监控系统（如 Prometheus）的指标：
+
+| 指标 | 成功条件 | 失败条件 |
+|------|---------|---------|
+| 成功率 | >= 99% | < 95% |
+| P99 延迟 | < 500ms | > 1000ms |
+| 错误率 | < 1% | >= 5% |
+| CPU 使用率 | < 80% | >= 90% |
+
+如果分析失败，Argo Rollouts 会**自动回滚**到之前的稳定版本。
+
+### 与滚动更新的区别
+
+| 特性 | 滚动更新 (Rolling Update) | 金丝雀发布 (Canary) |
+|------|--------------------------|---------------------|
+| 发布速度 | 逐步替换所有 Pod | 可暂停、可继续 |
+| 流量控制 | 自动均分到新旧 Pod | 精确百分比控制 |
+| 自动分析 | 无 | 有（AnalysisTemplate） |
+| 回滚能力 | 手动回滚 | 自动回滚 |
+| 风险控制 | 全量暴露 | 渐进暴露 |
+| 暂停能力 | 不支持 | 任意步骤暂停 |
+
+## Blue-Green 蓝绿发布
+
+### 核心原理
+
+蓝绿发布维护两套完全相同的环境：**Active（蓝色）** 和 **Preview（绿色）**。新版本部署到 Preview 环境，验证通过后通过流量切换一次性将所有流量从 Active 切到 Preview。
+
+```
+初始状态:
+  Active (Blue)  ← 100% 流量  [v1.0.0]
+  Preview (Green)              [空]
+
+部署新版本:
+  Active (Blue)  ← 100% 流量  [v1.0.0]
+  Preview (Green)              [v2.0.0]
+
+验证通过，切换流量:
+  Active (Blue)               [v1.0.0]
+  Preview (Green) ← 100% 流量 [v2.0.0]
+
+清理旧版本:
+  Active (Blue)               [已缩容]
+  Preview (Green) ← 100% 流量 [v2.0.0]
+```
+
+### Canary vs Blue-Green 选择
+
+| 场景 | 推荐策略 |
+|------|---------|
+| 用户量大，需要精确流量控制 | Canary |
+| 微服务架构，需要观察指标 | Canary |
+| 需要完整的预发布验证环境 | Blue-Green |
+| 数据库变更，需要一次性切换 | Blue-Green |
+| 发布窗口有限，需要快速回滚 | Blue-Green |
+
+## 回滚策略
+
+当发布出现问题时，有多种回滚方式可以选择：
+
+### 1. Git Revert（最安全）
+
+通过 Git 回滚到之前的配置版本：
+
+```bash
+# 回滚到上一个版本
+git revert HEAD
+git push origin main
+
+# Argo CD 检测到变更，自动同步到集群
+```
+
+优点：完整的审计记录，符合 GitOps 原则
+缺点：需要时间重新构建和部署
+
+### 2. Canary 回滚（自动）
+
+当 AnalysisRun 检测到指标异常时，Argo Rollouts 自动将流量切回稳定版本：
+
+```bash
+# 手动触发回滚
+kubectl argo rollouts abort stage3-app -n stage3
+```
+
+优点：快速自动回滚，减少故障时间
+缺点：需要提前配置 AnalysisTemplate
+
+### 3. Blue-Green 回滚（即时切换）
+
+只需将流量切回 Active 环境：
+
+```bash
+# 回滚到之前的稳定版本
+kubectl argo rollouts undo stage3-app -n stage3
+```
+
+优点：即时回滚，旧版本环境一直保留
+缺点：需要双倍资源维持两套环境
+
+### 回滚策略对比
+
+| 特性 | Git Revert | Canary Rollback | Blue-Green Rollback |
+|------|-----------|-----------------|---------------------|
+| 回滚速度 | 慢（分钟级） | 快（秒级） | 最快（即时） |
+| 资源消耗 | 无额外消耗 | 少量额外 Pod | 双倍资源 |
+| 审计记录 | Git 历史 | Rollout 状态 | Rollout 状态 |
+| 自动化 | 需手动 | 自动 | 半自动 |
+
+## Argo Rollouts 核心概念
+
+| 概念 | 说明 |
+|------|------|
+| **Rollout** | 替代 Deployment 的工作负载资源，定义发布策略 |
+| **Canary Strategy** | 金丝雀发布策略，配置流量分配步骤 |
+| **Blue-Green Strategy** | 蓝绿发布策略，配置 Active/Preview 切换 |
+| **AnalysisTemplate** | 定义分析指标和成功/失败条件 |
+| **AnalysisRun** | 发布过程中执行的分析实例 |
+| **Experiment** | 可选的实验分析，独立于正式发布流程 |
+
+## Stage 3 学习目标
+
+- [ ] 理解 Canary 和 Blue-Green 发布原理
+- [ ] 配置 Argo Rollouts 发布策略
+- [ ] 设计 AnalysisTemplate 指标分析
+- [ ] 掌握自动回滚机制
+- [ ] 理解不同回滚策略的适用场景
+
+## 知识检测
+
+<div className="quiz">
+  <h4>知识检测</h4>
+  <details>
+    <summary>问题: Canary 发布与滚动更新的最大区别是什么？</summary>
+    <p><strong>答案</strong>: Canary 可以精确控制流量百分比并暂停发布</p>
+    <p>Canary 发布的核心优势是精确的流量控制和可暂停的发布过程。滚动更新自动替换 Pod，而 Canary 可以按百分比逐步切流量，并在每个步骤暂停观察。</p>
+  </details>
+  <details>
+    <summary>问题: Blue-Green 发布需要多少资源？</summary>
+    <p><strong>答案</strong>: 大约双倍资源</p>
+    <p>Blue-Green 发布需要同时维护 Active 和 Preview 两套完整环境，因此需要约双倍的 Pod 和资源。这是它的主要缺点，但换来了即时回滚的能力。</p>
+  </details>
+  <details>
+    <summary>问题: AnalysisTemplate 中的 successCondition 作用是什么？</summary>
+    <p><strong>答案</strong>: 定义指标分析的成功条件，决定发布是否继续</p>
+    <p>successCondition 是一个表达式，Argo Rollouts 在每个分析步骤查询 Prometheus 等监控系统，将返回值代入表达式判断。如果条件为 true 则继续发布，false 则触发回滚。</p>
+  </details>
+  <details>
+    <summary>问题: 为什么 Git Revert 被认为是最安全的回滚方式？</summary>
+    <p><strong>答案</strong>: 完整的审计记录，符合 GitOps 原则</p>
+    <p>Git Revert 通过 Git 提交来恢复配置，保留完整的变更历史和审计记录。虽然速度较慢，但确保了系统的期望状态始终有据可查。</p>
+  </details>
+</div>
+
+下一步: [Rollout 配置](./rollout-config)

@@ -1,0 +1,235 @@
+---
+sidebar_position: 2
+title: Pipeline 配置
+---
+
+# Pipeline 配置详解
+
+import CIConfigEditor from '@site/src/components/CIConfigEditor';
+import PipelineVisualizer from '@site/src/components/PipelineVisualizer';
+
+## .gitlab-ci.yml 结构
+
+GitLab CI 的 Pipeline 配置通过项目根目录的 `.gitlab-ci.yml` 文件定义。这个文件描述了从代码提交到部署的完整自动化流程。
+
+### 基本结构
+
+```yaml
+# 定义 Pipeline 的阶段顺序
+stages:
+  - build
+  - test
+  - deploy
+
+# 全局变量，所有 Job 都可以使用
+variables:
+  APP_NAME: "cicd-easy-app"
+  REGISTRY: "registry.local"
+
+# 默认配置，所有 Job 继承
+default:
+  image: alpine:3.18
+  before_script:
+    - echo "Starting job in $CI_COMMIT_BRANCH"
+```
+
+### Stages 字段
+
+`stages` 定义了 Pipeline 的执行阶段。同一 Stage 中的 Job 并行执行，不同 Stage 按顺序串行：
+
+```yaml
+stages:
+  - build    # 先执行所有 build 类 Job
+  - test     # build 完成后执行所有 test 类 Job
+  - deploy   # test 完成后执行所有 deploy 类 Job
+```
+
+### Jobs 字段
+
+每个 Job 是一个独立的执行单元，必须包含 `script` 字段：
+
+```yaml
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+      --dockerfile=Dockerfile
+      --context=.
+      --destination=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
+```
+
+### 关键 Job 配置项
+
+| 字段 | 作用 | 示例 |
+|------|------|------|
+| `stage` | 归属的阶段 | `stage: build` |
+| `image` | 运行 Job 的 Docker 镜像 | `image: node:18-alpine` |
+| `script` | 要执行的 Shell 命令 | `script: [npm ci, npm test]` |
+| `variables` | Job 级别的变量 | `variables: {NODE_ENV: "test"}` |
+| `only` | 触发条件（分支/标签） | `only: [main, tags]` |
+| `except` | 排除条件 | `except: [docs]` |
+| `needs` | DAG 依赖，跳过 Stage 顺序 | `needs: [build-image]` |
+| `artifacts` | Job 产出物 | `artifacts: {paths: [dist/]}` |
+| `cache` | 缓存依赖 | `cache: {paths: [node_modules/]}` |
+| `rules` | 高级条件判断 | `rules: [{if: '$CI_COMMIT_BRANCH == "main"'}]` |
+
+### Variables 变量
+
+变量分为三个层级，优先级从高到低：
+
+1. **Job 级变量** — 在 Job 内部定义，仅当前 Job 可用
+2. **Pipeline 级变量** — 在 `variables:` 顶层定义，所有 Job 共享
+3. **GitLab 预定义变量** — 由 GitLab 自动注入
+
+```yaml
+variables:
+  # Pipeline 级变量
+  APP_NAME: "my-app"
+
+build-image:
+  variables:
+    # Job 级变量，覆盖 Pipeline 级
+    DOCKER_BUILDKIT: "1"
+  script:
+    # 使用 GitLab 预定义变量
+    - echo "Building $APP_NAME for commit $CI_COMMIT_SHORT_SHA"
+```
+
+常用的 GitLab 预定义变量：
+
+| 变量 | 含义 |
+|------|------|
+| `$CI_REGISTRY_IMAGE` | Container Registry 中的镜像地址 |
+| `$CI_COMMIT_SHORT_SHA` | Git 提交的短哈希值（前 8 位） |
+| `$CI_COMMIT_BRANCH` | 当前提交所在的分支名 |
+| `$CI_PIPELINE_ID` | 当前 Pipeline 的全局 ID |
+| `$CI_ENVIRONMENT_NAME` | 当前部署的环境名称 |
+
+### only/except vs rules
+
+`only/except` 是传统的触发条件语法，`rules` 是更强大的新语法：
+
+```yaml
+# 传统写法
+deploy-prod:
+  stage: deploy
+  script: ./deploy.sh prod
+  only:
+    - main
+  except:
+    - tags
+
+# 推荐的新写法
+deploy-prod:
+  stage: deploy
+  script: ./deploy.sh prod
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+      when: on_success
+    - when: never
+```
+
+## 交互式 YAML 编辑器
+
+使用下方的 **CI Config Editor** 实时编辑 `.gitlab-ci.yml` 配置。编辑器会自动检查语法错误和 GitLab CI 关键字拼写：
+
+<CIConfigEditor />
+
+## Pipeline 流程可视化
+
+下面展示了一个完整的三阶段 Pipeline 执行流程。点击"运行"按钮观察各阶段的执行顺序和状态变化：
+
+<PipelineVisualizer autoRun={true} />
+
+## 完整 .gitlab-ci.yml 示例
+
+以下是一个生产级 `.gitlab-ci.yml` 的完整示例，涵盖构建、测试、部署三个阶段：
+
+```yaml
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  APP_NAME: "cicd-easy-app"
+
+# --- Build Stage ---
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+      --dockerfile=Dockerfile
+      --context=.
+      --destination=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
+
+# --- Test Stage ---
+run-unit-tests:
+  stage: test
+  image: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  script:
+    - npm ci
+    - npm test
+  needs: [build-image]
+  only:
+    - main
+
+run-integration-tests:
+  stage: test
+  image: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  script:
+    - npm run test:integration
+  needs: [build-image]
+  only:
+    - main
+
+# --- Deploy Stage ---
+deploy-to-dev:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl set image deployment/$APP_NAME
+        app=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+        -n dev
+  needs: [run-unit-tests]
+  only:
+    - main
+  environment:
+    name: dev
+    url: https://dev.example.com
+
+deploy-to-prod:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl set image deployment/$APP_NAME
+        app=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+        -n prod
+  needs: [run-unit-tests, run-integration-tests]
+  only:
+    - main
+  when: manual
+  environment:
+    name: prod
+    url: https://prod.example.com
+```
+
+## 要点总结
+
+- `stages` 定义执行顺序，同一 Stage 内的 Job 并行执行
+- `only/except` 和 `rules` 控制 Job 的触发条件
+- `needs` 可以创建 DAG 依赖，突破 Stage 顺序限制
+- `variables` 支持多层级定义，GitLab 预定义变量提供丰富的上下文信息
+- `environment` 关键字将 Job 与部署环境关联，便于追踪
+
+下一步: [配置对比](./config-diff)
