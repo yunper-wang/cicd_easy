@@ -1,0 +1,109 @@
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+.heroDesc {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.9;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.outlineBtn {
+  color: var(--ifm-color-white);
+  border-color: var(--ifm-color-white);
+}
+
+.outlineBtn:hover {
+  color: var(--ifm-color-primary);
+  background-color: var(--ifm-color-white);
+}
+
+.stagesSection {
+  padding: 4rem 0;
+}
+
+.sectionTitle {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.stageCard {
+  background: var(--ifm-card-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.stageCard h3 {
+  margin-bottom: 0.75rem;
+}
+
+.stageCard p {
+  flex: 1;
+}
+
+.conceptTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.conceptTag {
+  background: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary-darkest);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+[data-theme='dark'] .conceptTag {
+  background: var(--ifm-color-primary-dark);
+  color: var(--ifm-color-primary-lightest);
+}
+
+.cardButton {
+  margin-top: auto;
+}
+
+.featuresSection {
+  padding: 3rem 0;
+  background: var(--ifm-color-emphasis-100);
+}
+
+[data-theme='dark'] .featuresSection {
+  background: var(--ifm-color-emphasis-200);
+}
+
+.featureItem {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.featureItem h3 {
+  margin-bottom: 0.5rem;
+}
+
+.featureItem p {
+  color: var(--ifm-color-emphasis-700);
+}

@@ -13,3 +13,11 @@ Thumbs.db
 
 # Node
 node_modules/
+
+# Docusaurus
+website/build/
+website/.docusaurus/
+website/.cache-loader/
+
+# IDE project files
+*.iml
