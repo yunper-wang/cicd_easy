@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useMemo} from 'react';
+import React, {useState, useCallback, useMemo, useEffect} from 'react';
 
 interface ValidationError {
   line: number;
@@ -254,13 +254,13 @@ export default function CIConfigEditor({initialYaml, onValidChange}: CIConfigEdi
   const warningCount = errors.filter(e => e.severity === 'warning').length;
   const isValid = errorCount === 0;
 
+  useEffect(() => {
+    onValidChange?.(yaml, isValid);
+  }, [yaml, isValid, onValidChange]);
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setYaml(val);
-    const p = parseLines(val);
-    const errs = validate(p, val);
-    onValidChange?.(val, errs.filter(e => e.severity === 'error').length === 0);
-  }, [onValidChange]);
+    setYaml(e.target.value);
+  }, []);
 
   const lines = yaml.split('\n');
   const errorLines = new Set(errors.filter(e => e.severity === 'error').map(e => e.line));

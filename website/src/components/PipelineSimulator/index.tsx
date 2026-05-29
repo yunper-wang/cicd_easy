@@ -1,4 +1,4 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useEffect, useRef} from 'react';
 
 interface Phase {
   name: string;
@@ -39,21 +39,33 @@ export default function PipelineSimulator(): JSX.Element {
   const [canaryRunning, setCanaryRunning] = useState(false);
   const [canaryResult, setCanaryResult] = useState<'success' | 'failed' | null>(null);
 
+  const pipelineTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const canaryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pipelineTimerRef.current) clearInterval(pipelineTimerRef.current);
+      if (canaryTimerRef.current) clearInterval(canaryTimerRef.current);
+    };
+  }, []);
+
   const runPipeline = useCallback(() => {
+    if (pipelineTimerRef.current) clearInterval(pipelineTimerRef.current);
     setPipelineStep(0);
     setPipelineRunning(true);
     let step = 0;
-    const interval = setInterval(() => {
+    pipelineTimerRef.current = setInterval(() => {
       step++;
       setPipelineStep(step);
       if (step >= PIPELINE_PHASES.length) {
-        clearInterval(interval);
+        if (pipelineTimerRef.current) clearInterval(pipelineTimerRef.current);
         setPipelineRunning(false);
       }
     }, 800);
   }, []);
 
   const runCanary = useCallback(() => {
+    if (canaryTimerRef.current) clearInterval(canaryTimerRef.current);
     const newSteps = INITIAL_CANARY.map((s) => ({...s, status: 'pending' as const}));
     newSteps[0].status = 'success';
     setCanarySteps(newSteps);
@@ -61,13 +73,13 @@ export default function PipelineSimulator(): JSX.Element {
     setCanaryResult(null);
     let step = 1;
     const willFailAt = Math.random() > 0.6 ? Math.floor(Math.random() * 3) + 2 : -1;
-    const interval = setInterval(() => {
+    canaryTimerRef.current = setInterval(() => {
       if (step <= willFailAt && willFailAt > 0) {
         newSteps[step].status = 'failed';
         setCanarySteps([...newSteps]);
         setCanaryResult('failed');
         setCanaryRunning(false);
-        clearInterval(interval);
+        if (canaryTimerRef.current) clearInterval(canaryTimerRef.current);
         return;
       }
       newSteps[step].status = 'success';
@@ -76,7 +88,7 @@ export default function PipelineSimulator(): JSX.Element {
       if (step >= newSteps.length) {
         setCanaryResult('success');
         setCanaryRunning(false);
-        clearInterval(interval);
+        if (canaryTimerRef.current) clearInterval(canaryTimerRef.current);
       }
     }, 1200);
   }, []);

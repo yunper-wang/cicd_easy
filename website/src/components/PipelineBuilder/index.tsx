@@ -27,8 +27,8 @@ function generateCI(config: BuildConfig): string {
       : 'docker:24-dind';
   const buildScript =
     config.buildTool === 'kaniko'
-      ? `    - /kaniko/executor\n      --dockerfile=${config.dockerfile}\n      --context=.\n      --destination=$CI_REGISTRY_IMAGE:${config.imageName}:$CI_COMMIT_SHORT_SHA`
-      : `    - docker build -f ${config.dockerfile} -t $CI_REGISTRY_IMAGE:${config.imageName}:$CI_COMMIT_SHORT_SHA .\n    - docker push $CI_REGISTRY_IMAGE:${config.imageName}:$CI_COMMIT_SHORT_SHA`;
+      ? `    - /kaniko/executor\n      --dockerfile=${config.dockerfile}\n      --context=.\n      --destination=$CI_REGISTRY_IMAGE/${config.imageName}:$CI_COMMIT_SHORT_SHA`
+      : `    - docker build -f ${config.dockerfile} -t $CI_REGISTRY_IMAGE/${config.imageName}:$CI_COMMIT_SHORT_SHA .\n    - docker push $CI_REGISTRY_IMAGE/${config.imageName}:$CI_COMMIT_SHORT_SHA`;
 
   return `stages:
   - build

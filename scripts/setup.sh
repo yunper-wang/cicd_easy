@@ -116,7 +116,18 @@ check_dep() {
     return 1
   fi
   local ver
-  ver=$($cmd --version 2>/dev/null | head -1 | grep -oP '[\d.]+' | head -1)
+  ver=$($cmd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+  if [[ -z "$ver" ]]; then
+    log "  ${name}: 已安装 (版本未知) ✓"
+    return 0
+  fi
+  local min_normalized ver_normalized
+  min_normalized=$(echo "$min_ver" | sed 's/[^0-9]//g')
+  ver_normalized=$(echo "$ver" | sed 's/[^0-9]//g')
+  if [[ "$ver_normalized" -lt "$min_normalized" ]]; then
+    err "${name} 版本过低: ${ver} (需要 ≥ ${min_ver})"
+    return 1
+  fi
   log "  ${name}: ${ver} (需要 ≥ ${min_ver}) ✓"
   return 0
 }
