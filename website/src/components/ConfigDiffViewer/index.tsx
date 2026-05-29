@@ -2,11 +2,10 @@ import React, {useState, useMemo} from 'react';
 import clsx from 'clsx';
 
 interface DiffLine {
-  type: 'same' | 'add' | 'remove' | 'change';
+  type: 'same' | 'add' | 'remove';
   oldNum?: number;
   newNum?: number;
   content: string;
-  oldContent?: string;
 }
 
 interface Props {
@@ -15,67 +14,47 @@ interface Props {
   title?: string;
 }
 
-function computeDiff(oldText: string, newText: string): DiffLine[] {
-  const oldLines = oldText.split('\n');
-  const newLines = newText.split('\n');
-  const result: DiffLine[] = [];
+function computeLCS(oldLines: string[], newLines: string[]): DiffLine[] {
+  const m = oldLines.length;
+  const n = newLines.length;
 
-  const maxLen = Math.max(oldLines.length, newLines.length);
-  let oldIdx = 0;
-  let newIdx = 0;
-
-  // Simple line-by-line diff
-  for (let i = 0; i < maxLen; i++) {
-    const oldLine = oldIdx < oldLines.length ? oldLines[oldIdx] : undefined;
-    const newLine = newIdx < newLines.length ? newLines[newIdx] : undefined;
-
-    if (oldLine === newLine) {
-      result.push({type: 'same', oldNum: oldIdx + 1, newNum: newIdx + 1, content: oldLine});
-      oldIdx++;
-      newIdx++;
-    } else {
-      // Look ahead to find where lines match again
-      let foundMatch = false;
-      for (let ahead = 1; ahead <= 3; ahead++) {
-        if (oldIdx + ahead < oldLines.length && oldLines[oldIdx + ahead] === newLine) {
-          // Old has extra lines
-          for (let j = 0; j < ahead; j++) {
-            result.push({type: 'remove', oldNum: oldIdx + 1, content: oldLines[oldIdx]});
-            oldIdx++;
-          }
-          result.push({type: 'add', newNum: newIdx + 1, content: newLines[newIdx]});
-          newIdx++;
-          foundMatch = true;
-          break;
-        }
-        if (newIdx + ahead < newLines.length && newLines[newIdx + ahead] === oldLine) {
-          // New has extra lines
-          for (let j = 0; j < ahead; j++) {
-            result.push({type: 'add', newNum: newIdx + 1, content: newLines[newIdx]});
-            newIdx++;
-          }
-          result.push({type: 'same', oldNum: oldIdx + 1, newNum: newIdx + 1, content: oldLine});
-          oldIdx++;
-          newIdx++;
-          foundMatch = true;
-          break;
-        }
-      }
-
-      if (!foundMatch) {
-        result.push({type: 'change', oldNum: oldIdx + 1, newNum: newIdx + 1, content: newLine, oldContent: oldLine});
-        oldIdx++;
-        newIdx++;
+  const dp: number[][] = Array.from({length: m + 1}, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
       }
     }
   }
 
+  const result: DiffLine[] = [];
+  let i = m, j = n;
+  const stack: DiffLine[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      stack.push({type: 'same', oldNum: i, newNum: j, content: oldLines[i - 1]});
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      stack.push({type: 'add', newNum: j, content: newLines[j - 1]});
+      j--;
+    } else {
+      stack.push({type: 'remove', oldNum: i, content: oldLines[i - 1]});
+      i--;
+    }
+  }
+
+  for (let k = stack.length - 1; k >= 0; k--) {
+    result.push(stack[k]);
+  }
   return result;
 }
 
 export default function ConfigDiffViewer({oldConfig, newConfig, title}: Props) {
   const [collapsed, setCollapsed] = useState(true);
-  const diffLines = useMemo(() => computeDiff(oldConfig, newConfig), [oldConfig, newConfig]);
+  const diffLines = useMemo(() => computeLCS(oldConfig.split('\n'), newConfig.split('\n')), [oldConfig, newConfig]);
 
   const changeCount = diffLines.filter((l) => l.type !== 'same').length;
   const sameCount = diffLines.filter((l) => l.type === 'same').length;
@@ -83,17 +62,13 @@ export default function ConfigDiffViewer({oldConfig, newConfig, title}: Props) {
   const displayedLines = collapsed
     ? diffLines.filter((line, idx) => {
         if (line.type !== 'same') return true;
-        // Show context around changes (2 lines before and after)
-        const prev = diffLines[idx - 1];
-        const prev2 = diffLines[idx - 2];
-        const next = diffLines[idx + 1];
-        const next2 = diffLines[idx + 2];
-        return (
-          (prev && prev.type !== 'same') ||
-          (prev2 && prev2.type !== 'same') ||
-          (next && next.type !== 'same') ||
-          (next2 && next2.type !== 'same')
-        );
+        const context = 2;
+        for (let offset = 1; offset <= context; offset++) {
+          const prev = diffLines[idx - offset];
+          const next = diffLines[idx + offset];
+          if ((prev && prev.type !== 'same') || (next && next.type !== 'same')) return true;
+        }
+        return false;
       })
     : diffLines;
 
@@ -124,18 +99,13 @@ export default function ConfigDiffViewer({oldConfig, newConfig, title}: Props) {
           <tbody>
             {displayedLines.map((line, idx) => (
               <tr key={idx} className={clsx('diff-viewer__line', `diff-viewer__line--${line.type}`)}>
-                <td className="diff-viewer__num diff-viewer__num--old">{line.oldNum ?? ''}</td>
-                <td className="diff-viewer__num diff-viewer__num--new">{line.newNum ?? ''}</td>
+                <td className="diff-viewer__num">{line.oldNum ?? ''}</td>
+                <td className="diff-viewer__num">{line.newNum ?? ''}</td>
                 <td className="diff-viewer__marker">
-                  {line.type === 'add' ? '+' : line.type === 'remove' ? '-' : line.type === 'change' ? '~' : ' '}
+                  {line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}
                 </td>
                 <td className="diff-viewer__text">
                   <code>{line.content}</code>
-                  {line.type === 'change' && line.oldContent && (
-                    <div className="diff-viewer__old-line">
-                      <code>{line.oldContent}</code>
-                    </div>
-                  )}
                 </td>
               </tr>
             ))}

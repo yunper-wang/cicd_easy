@@ -26,6 +26,8 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - name: Install dependencies
         run: cd website && npm ci
+      - name: Type check
+        run: cd website && npm run typecheck
       - name: Build website
         run: cd website && npm run build
       - uses: actions/upload-pages-artifact@v3

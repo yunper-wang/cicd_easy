@@ -6,6 +6,7 @@ import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
+import {useProgress} from '../hooks/useProgress';
 
 const StageList = [
   {
@@ -14,6 +15,7 @@ const StageList = [
     link: '/docs/stage1/concepts',
     label: '开始学习',
     concepts: ['Docker', 'GitLab CI', 'Argo CD'],
+    stageId: 'stage1',
   },
   {
     title: 'Stage 2: 多环境管理',
@@ -21,6 +23,7 @@ const StageList = [
     link: '/docs/stage2/concepts',
     label: '开始学习',
     concepts: ['Kustomize', '多环境', 'Sync Policy'],
+    stageId: 'stage2',
   },
   {
     title: 'Stage 3: Canary 发布',
@@ -28,13 +31,20 @@ const StageList = [
     link: '/docs/stage3/concepts',
     label: '开始学习',
     concepts: ['Canary', 'Analysis', 'Auto Rollback'],
+    stageId: 'stage3',
   },
 ];
 
-function StageCard({title, description, link, label, concepts}: (typeof StageList)[number]) {
+function StageCard({title, description, link, label, concepts, stageId, percent}: (typeof StageList)[number] & {percent: number}) {
   return (
     <div className={clsx('col col--4')}>
       <div className={styles.stageCard}>
+        <div className={styles.stageProgress}>
+          <div className={styles.stageProgressBar}>
+            <div className={styles.stageProgressFill} style={{width: `${percent}%`}} />
+          </div>
+          <span className={styles.stageProgressLabel}>{percent}%</span>
+        </div>
         <Heading as="h3">{title}</Heading>
         <p>{description}</p>
         <div className={styles.conceptTags}>
@@ -44,9 +54,31 @@ function StageCard({title, description, link, label, concepts}: (typeof StageLis
         </div>
         <div className={styles.cardButton}>
           <Link className="button button--primary button--sm" to={link}>
-            {label}
+            {percent > 0 ? '继续学习' : label}
           </Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProgressOverview({getStagePercent, getOverallPercent, reset}: ReturnType<typeof useProgress>) {
+  const overall = getOverallPercent();
+  if (overall === 0) return null;
+
+  return (
+    <div className={styles.progressOverview}>
+      <div className={styles.progressHeader}>
+        <Heading as="h3">学习进度</Heading>
+        <button className="button button--sm button--secondary" onClick={reset}>
+          重置进度
+        </button>
+      </div>
+      <div className={styles.overallProgress}>
+        <div className={styles.overallBar}>
+          <div className={styles.overallFill} style={{width: `${overall}%`}} />
+        </div>
+        <span className={styles.overallLabel}>总进度 {overall}%</span>
       </div>
     </div>
   );
@@ -83,6 +115,8 @@ function HomepageHeader() {
 
 export default function Home(): ReactNode {
   const {siteConfig} = useDocusaurusContext();
+  const progress = useProgress();
+
   return (
     <Layout
       title={`${siteConfig.title} — CI/CD 交互式学习`}
@@ -94,9 +128,14 @@ export default function Home(): ReactNode {
             <Heading as="h2" className={styles.sectionTitle}>
               3 个渐进式学习阶段
             </Heading>
+            <ProgressOverview {...progress} />
             <div className="row">
               {StageList.map((props) => (
-                <StageCard key={props.title} {...props} />
+                <StageCard
+                  key={props.title}
+                  {...props}
+                  percent={progress.getStagePercent(props.stageId)}
+                />
               ))}
             </div>
           </div>

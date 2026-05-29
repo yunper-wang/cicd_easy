@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 
 interface Step {
   title: string;
@@ -18,6 +18,27 @@ interface BuildConfig {
   namespace: string;
   replicas: number;
   registry: string;
+}
+
+const DEFAULT_CONFIG: BuildConfig = {
+  buildTool: 'kaniko',
+  dockerfile: 'Dockerfile',
+  imageName: 'my-app',
+  namespace: 'default',
+  replicas: 1,
+  registry: 'registry.local',
+};
+
+function configToHash(c: BuildConfig): string {
+  return btoa(JSON.stringify(c));
+}
+
+function hashToConfig(hash: string): BuildConfig | null {
+  try {
+    return JSON.parse(atob(hash));
+  } catch {
+    return null;
+  }
 }
 
 function generateCI(config: BuildConfig): string {
@@ -75,20 +96,55 @@ spec:
       - name: ${config.imageName}
         image: ${config.registry}/${config.imageName}:latest
         ports:
-        - containerPort: 80
+      - containerPort: 80
 `;
+}
+
+function CopyButton({text}: {text: string}) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [text]);
+
+  return (
+    <button
+      className="button button--sm button--secondary copy-btn"
+      onClick={handleCopy}>
+      {copied ? '已复制 ✓' : '复制'}
+    </button>
+  );
 }
 
 export default function PipelineBuilder(): JSX.Element {
   const [currentStep, setCurrentStep] = useState(0);
-  const [config, setConfig] = useState<BuildConfig>({
-    buildTool: 'kaniko',
-    dockerfile: 'Dockerfile',
-    imageName: 'my-app',
-    namespace: 'default',
-    replicas: 1,
-    registry: 'registry.local',
+  const [config, setConfig] = useState<BuildConfig>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        const parsed = hashToConfig(hash);
+        if (parsed) return parsed;
+      }
+    }
+    return DEFAULT_CONFIG;
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.location.hash = configToHash(config);
+    }
+  }, [config]);
 
   const ciYaml = generateCI(config);
   const deployYaml = generateDeployment(config);
@@ -233,11 +289,17 @@ export default function PipelineBuilder(): JSX.Element {
 
       <div className="pipeline-builder__output">
         <div className="pipeline-builder__output-col">
-          <h4>.gitlab-ci.yml</h4>
+          <div className="pipeline-builder__output-header">
+            <h4>.gitlab-ci.yml</h4>
+            <CopyButton text={ciYaml} />
+          </div>
           <pre><code>{ciYaml}</code></pre>
         </div>
         <div className="pipeline-builder__output-col">
-          <h4>deployment.yaml</h4>
+          <div className="pipeline-builder__output-header">
+            <h4>deployment.yaml</h4>
+            <CopyButton text={deployYaml} />
+          </div>
           <pre><code>{deployYaml}</code></pre>
         </div>
       </div>

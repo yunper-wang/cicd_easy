@@ -107,3 +107,75 @@
 .featureItem p {
   color: var(--ifm-color-emphasis-700);
 }
+
+/* Progress */
+.progressOverview {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--ifm-card-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.progressHeader h3 {
+  margin: 0;
+}
+
+.overallProgress {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.overallBar {
+  flex: 1;
+  height: 8px;
+  background: var(--ifm-color-emphasis-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.overallFill {
+  height: 100%;
+  background: var(--ifm-color-primary);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.overallLabel {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  color: var(--ifm-color-primary);
+}
+
+.stageProgress {
+  margin-bottom: 0.75rem;
+}
+
+.stageProgressBar {
+  height: 4px;
+  background: var(--ifm-color-emphasis-200);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.stageProgressFill {
+  height: 100%;
+  background: var(--ifm-color-primary);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.stageProgressLabel {
+  font-size: 0.75rem;
+  color: var(--ifm-color-emphasis-600);
+}

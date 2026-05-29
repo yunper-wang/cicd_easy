@@ -11,6 +11,43 @@ interface Props {
   title?: string;
 }
 
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(text.slice(lastIdx, match.index));
+    }
+    if (match[1]) {
+      parts.push(<strong key={key++}>{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<code key={key++} className="code-annotator__inline-code">{match[4]}</code>);
+    } else if (match[5]) {
+      parts.push(
+        <a key={key++} href={match[7]} target="_blank" rel="noopener noreferrer">{match[6]}</a>
+      );
+    }
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < text.length) {
+    parts.push(text.slice(lastIdx));
+  }
+  return parts.length > 0 ? parts : [text];
+}
+
+function renderMarkdown(text: string): React.ReactNode[] {
+  return text.split('\n').map((line, i) => (
+    <React.Fragment key={i}>
+      {i > 0 && <br />}
+      {renderInlineMarkdown(line)}
+    </React.Fragment>
+  ));
+}
+
 export default function CodeAnnotator({code, annotations, title}: Props): JSX.Element {
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const lines = code.split('\n');
@@ -53,7 +90,7 @@ export default function CodeAnnotator({code, annotations, title}: Props): JSX.El
               第 {activeLine} 行解读
             </div>
             <div className="code-annotator__panel-content">
-              {annotationMap.get(activeLine)}
+              {renderMarkdown(annotationMap.get(activeLine)!)}
             </div>
           </div>
         )}
